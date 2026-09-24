@@ -54,6 +54,7 @@ engine.start(() => {
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Engine } from './Engine';
+import { Robot } from './Robot';
 
 async function bootstrap() {
   const engine = new Engine();
@@ -86,25 +87,50 @@ async function bootstrap() {
   // Pas besoin de synchro pour le sol statique car il ne bouge pas !
 
   // --------------------------------------------------------
-  // 2. CUBE DYNAMIQUE
+  // 2. ENVIRONNEMENT VISUEL (Optionnel)
   // --------------------------------------------------------
-  const cubeMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x0077ff })
-  );
-  engine.scene.add(cubeMesh);
+  await engine.loadEnvironment('/models/env.glb');
 
-  // Création du body dynamique
-  const cubeBodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 6, 0);
-  const cubeBody = engine.physics.world.createRigidBody(cubeBodyDesc);
-  const cubeCollider = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
-  engine.physics.world.createCollider(cubeCollider, cubeBody);
+  // --------------------------------------------------------
+  // 3. BRAS ROBOTIQUE
+  // --------------------------------------------------------
+  const robot = new Robot('/models/bras_robotique.glb');
+  await engine.addRobot(robot);
 
-  // Enregistrement de la paire pour la synchronisation automatique
-  engine.physics.addPair(cubeMesh, cubeBody);
+  const boneNames = robot.getBoneNames();
+  console.log('Os du bras robotique:', boneNames);
+
+  const animateRobot = async (): Promise<void> => {
+    while (true) {
+      await Promise.all([
+        robot.animateBone('bras', 25, 800, 'z'),
+        robot.animateBone('avant_bras', -35, 800, 'z'),
+        robot.animateBone('coude', 25, 800, 'z'),
+        robot.animateBone('poignet', 20, 800, 'y'),
+        robot.animateBone('pince1', 25, 800, 'z'),
+        robot.animateBone('pince2', -15, 800, 'z')
+      ]);
+
+      await Promise.all([
+        robot.animateBone('bras', -25, 800, 'z'),
+        robot.animateBone('avant_bras', 35, 800, 'z'),
+        robot.animateBone('coude', -25, 800, 'z'),
+        robot.animateBone('poignet', -20, 800, 'y'),
+        robot.animateBone('pince1', -25, 800, 'z'),
+        robot.animateBone('pince2', 25, 800, 'z')
+      ]);
+    }
+  };
+
+  let hasStartedAnimation = false;
 
   // Lancement du moteur
-  engine.start();
+  engine.start(() => {
+    if (!hasStartedAnimation) {
+      hasStartedAnimation = true;
+      void animateRobot();
+    }
+  });
 }
 
 bootstrap();
